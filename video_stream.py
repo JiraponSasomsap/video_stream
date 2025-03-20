@@ -13,47 +13,50 @@ class VideoStream:
         self.height = None
         self.width = None
         self.frame_count = None
+        self.cap = None
 
         self._thread = None
         self._cam_connect = False 
 
     def cam_connect(self):
         self.frame_count = 0
-        cap = cv2.VideoCapture(self.source, cv2.CAP_FFMPEG)
-        self.fps = int(cap.get(cv2.CAP_PROP_FPS))
-        self.height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        self.width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        self.cap = cv2.VideoCapture(self.source, cv2.CAP_FFMPEG)
+        self.fps = int(self.cap.get(cv2.CAP_PROP_FPS))
+        self.height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        self.width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 
-        if cap.isOpened():
+        if self.cap.isOpened():
             print(f'Connected to source : {self.source}')
             self._cam_connect = True
         else:
             print(f'Failed to connect to source : {self.source}')
             self._cam_connect = False
-        return cap
+        return self.cap
 
-    def _runThread(self):
-        cap = self.cam_connect()
+    def _run_thread(self):
+        if self.cap is None:
+            self.cap = self.cam_connect()
         prev_time = time.perf_counter()
         while self.is_running:
-            ret, frame = cap.read()
+            ret, frame = self.cap.read()
             if ret:
                 if self.lock_fps == -1 or self.fps < self.lock_fps:
                     self.current_frame = frame.copy()
                 elif self.fps >= self.lock_fps:
                     if self.frame_count % (self.fps//self.lock_fps) == 0:
                         self.current_frame = frame.copy()
+                        self.frame_count = 0 # reset frame count
                 self.frame_count += 1   
             else:
-                cap.release()
+                self.cap.release()
                 print(f'Lost connection to source: {self.source}. Reconnecting...')
-                cap = self.cam_connect()
+                self.cap = self.cam_connect()
             
             next_time = prev_time + (1 / self.fps)
             sleep_time = max(0, next_time - time.perf_counter())
             time.sleep(sleep_time)
             prev_time = next_time
-        cap.release()
+        self.cap.release()
 
     @property
     def get(self):
@@ -70,7 +73,7 @@ class VideoStream:
 
     def start(self):
         self.is_running = True
-        self._thread = threading.Thread(target=self._runThread, daemon=True)
+        self._thread = threading.Thread(target=self._run_thread, daemon=True)
         self._thread.start()
         self.wait()
         return _GetVideoStream(self)
@@ -82,30 +85,35 @@ class _GetVideoStream:
     def __init__(self, instance:VideoStream):
         self._videoStream = instance
     
-    def get_cam_fps(self):
+    @property
+    def cam_fps(self):
         return self._videoStream.fps
-    
-    def get_frame_height(self):
+    @property
+    def frame_height(self):
         return self._videoStream.height
-    
-    def get_frame_width(self):
+    @property
+    def frame_width(self):
         return self._videoStream.width
-    
-    def get_frame(self):
+    @property
+    def frame(self):
         if self._videoStream.current_frame is None:
             return None
         frame = self._videoStream.current_frame.copy()
         self._videoStream.current_frame = None
         return frame
-
-    def get_fps(self):
+    @property
+    def stream_fps(self):
         if self._videoStream.lock_fps == -1 or self._videoStream.fps < self._videoStream.lock_fps:
             return self._videoStream.fps
         elif self._videoStream.fps >= self._videoStream.lock_fps:
             return self._videoStream.lock_fps 
-        
-    def get_time_gap(self):
-        return 1/self.get_fps()
+    @property
+    def time_gap(self):
+        return 1/self.cam_fps
+    
+    @property
+    def is_running(self):
+        return self._videoStream.is_running
         
 if __name__ == '__main__':
     import numpy as np
@@ -114,7 +122,7 @@ if __name__ == '__main__':
     streaming = stream.start()
     frame_tmp = None
     while stream.is_running:
-        frame = streaming.get_frame()
+        frame = streaming.frame
         if frame is not None:
             frame_tmp = frame
             frame_tmp = cv2.resize(frame_tmp, np.array([frame_tmp.shape[1]*0.5, frame_tmp.shape[0]*0.5], dtype=np.int32))
