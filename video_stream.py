@@ -9,6 +9,7 @@ class VideoStream:
         self.lock_fps = lock_fps
 
         self.current_frame = None
+        self.current_frame_not_none = None
         self.fps = None
         self.height = None
         self.width = None
@@ -20,7 +21,8 @@ class VideoStream:
 
     def cam_connect(self):
         self.frame_count = 0
-        self.cap = cv2.VideoCapture(self.source, cv2.CAP_FFMPEG)
+        # self.cap = cv2.VideoCapture(self.source, cv2.CAP_FFMPEG)
+        self.cap = cv2.VideoCapture(self.source)
         self.fps = int(self.cap.get(cv2.CAP_PROP_FPS))
         self.height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         self.width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -42,9 +44,11 @@ class VideoStream:
             if ret:
                 if self.lock_fps == -1 or self.fps < self.lock_fps:
                     self.current_frame = frame.copy()
+                    self.current_frame_not_none = frame.copy()
                 elif self.fps >= self.lock_fps:
                     if self.frame_count % (self.fps//self.lock_fps) == 0:
                         self.current_frame = frame.copy()
+                        self.current_frame_not_none = frame.copy()
                         self.frame_count = 0 # reset frame count
                 self.frame_count += 1   
             else:
@@ -88,12 +92,15 @@ class _GetVideoStream:
     @property
     def cam_fps(self):
         return self._videoStream.fps
+    
     @property
     def frame_height(self):
         return self._videoStream.height
+    
     @property
     def frame_width(self):
         return self._videoStream.width
+    
     @property
     def frame(self):
         if self._videoStream.current_frame is None:
@@ -101,6 +108,7 @@ class _GetVideoStream:
         frame = self._videoStream.current_frame.copy()
         self._videoStream.current_frame = None
         return frame
+    
     @property
     def stream_fps(self):
         if self._videoStream.lock_fps == -1 or self._videoStream.fps < self._videoStream.lock_fps:
@@ -114,6 +122,12 @@ class _GetVideoStream:
     @property
     def is_running(self):
         return self._videoStream.is_running
+    
+    @property
+    def frame_not_none(self):
+        if self._videoStream.current_frame_not_none is None:
+            raise ValueError
+        return self._videoStream.current_frame_not_none
         
 if __name__ == '__main__':
     import numpy as np
