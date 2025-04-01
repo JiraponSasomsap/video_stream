@@ -48,10 +48,11 @@ class VideoStream:
         prev_time = time.perf_counter()
         while self.is_running:
             ret, frame = self.cap.read()
-            if self.is_resize:
-                dsize = (self.width, self.height)  # Only (width, height) is needed
-                frame = cv2.resize(frame, dsize)
             if ret:
+                if self.is_resize:
+                    dsize = (self.width, self.height)  # Only (width, height) is needed
+                    frame = cv2.resize(frame, dsize)
+
                 if self.lock_fps == -1 or self.fps < self.lock_fps:
                     self.current_frame = frame.copy()
                     self.current_frame_not_none = frame.copy()
