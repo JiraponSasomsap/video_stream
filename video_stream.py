@@ -3,7 +3,11 @@ import threading
 import time
 
 class VideoStream:
-    def __init__(self, source, lock_fps=-1):
+    def __init__(self, 
+                 source, 
+                 lock_fps=-1, 
+                 height=None, 
+                 width=None):
         self.source = source
         self.is_running = False
         self.lock_fps = lock_fps
@@ -11,8 +15,9 @@ class VideoStream:
         self.current_frame = None
         self.current_frame_not_none = None
         self.fps = None
-        self.height = None
-        self.width = None
+        self.is_resize = True if height is not None and width is not None else False
+        self.height = height
+        self.width = width
         self.frame_count = None
         self.cap = None
 
@@ -24,8 +29,10 @@ class VideoStream:
         # self.cap = cv2.VideoCapture(self.source, cv2.CAP_FFMPEG)
         self.cap = cv2.VideoCapture(self.source)
         self.fps = int(self.cap.get(cv2.CAP_PROP_FPS))
-        self.height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        self.width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+
+        if self.height is None or self.width is None:
+            self.height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            self.width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 
         if self.cap.isOpened():
             print(f'Connected to source : {self.source}')
@@ -41,6 +48,9 @@ class VideoStream:
         prev_time = time.perf_counter()
         while self.is_running:
             ret, frame = self.cap.read()
+            if self.is_resize:
+                dsize = (self.width, self.height)  # Only (width, height) is needed
+                frame = cv2.resize(frame, dsize)
             if ret:
                 if self.lock_fps == -1 or self.fps < self.lock_fps:
                     self.current_frame = frame.copy()
