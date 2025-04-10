@@ -2,10 +2,45 @@ import cv2
 import threading
 import time
 
+def video_streaming(insts):
+    if insts.cap is None:
+        insts.cap = insts.cam_connect()
+    prev_time = time.perf_counter()
+    while insts.is_running:
+        ret, frame = insts.cap.read()
+        if ret:
+            if insts.is_resize:
+                dsize = (insts.width, insts.height)  # Only (width, height) is needed
+                frame = cv2.resize(frame, dsize)
+
+            if insts.lock_fps == -1 or insts.fps < insts.lock_fps:
+                insts.current_frame = frame.copy()
+                insts.current_frame_not_none = frame.copy()
+            elif insts.fps >= insts.lock_fps:
+                if insts.frame_count % (insts.fps//insts.lock_fps) == 0:
+                    insts.current_frame = frame.copy()
+                    insts.current_frame_not_none = frame.copy()
+                    insts.frame_count = 0 # reset frame count
+            insts.frame_count += 1   
+        else:
+            insts.cap.release()
+            print(f'Lost connection to source: {insts.source}.')
+            if insts.reconnect:
+                print('Reconnecting...')
+                insts.cap = insts.cam_connect()
+            else:
+                insts.is_running = False
+        next_time = prev_time + (1 / insts.fps)
+        sleep_time = max(0, next_time - time.perf_counter())
+        time.sleep(sleep_time)
+        prev_time = next_time
+    insts.cap.release()
+
 class VideoStream:
     def __init__(self, 
                  source, 
                  lock_fps=-1, 
+                 reconnect=True,
                  height=None, 
                  width=None):
         self.source = source
@@ -20,6 +55,7 @@ class VideoStream:
         self.width = width
         self.frame_count = None
         self.cap = None
+        self.reconnect = reconnect
 
         self._thread = None
         self._cam_connect = False 
@@ -42,37 +78,6 @@ class VideoStream:
             self._cam_connect = False
         return self.cap
 
-    def _run_thread(self):
-        if self.cap is None:
-            self.cap = self.cam_connect()
-        prev_time = time.perf_counter()
-        while self.is_running:
-            ret, frame = self.cap.read()
-            if ret:
-                if self.is_resize:
-                    dsize = (self.width, self.height)  # Only (width, height) is needed
-                    frame = cv2.resize(frame, dsize)
-
-                if self.lock_fps == -1 or self.fps < self.lock_fps:
-                    self.current_frame = frame.copy()
-                    self.current_frame_not_none = frame.copy()
-                elif self.fps >= self.lock_fps:
-                    if self.frame_count % (self.fps//self.lock_fps) == 0:
-                        self.current_frame = frame.copy()
-                        self.current_frame_not_none = frame.copy()
-                        self.frame_count = 0 # reset frame count
-                self.frame_count += 1   
-            else:
-                self.cap.release()
-                print(f'Lost connection to source: {self.source}. Reconnecting...')
-                self.cap = self.cam_connect()
-            
-            next_time = prev_time + (1 / self.fps)
-            sleep_time = max(0, next_time - time.perf_counter())
-            time.sleep(sleep_time)
-            prev_time = next_time
-        self.cap.release()
-
     @property
     def get(self):
         if not self._cam_connect:
@@ -88,7 +93,7 @@ class VideoStream:
 
     def start(self):
         self.is_running = True
-        self._thread = threading.Thread(target=self._run_thread, daemon=True)
+        self._thread = threading.Thread(target=video_streaming, args=(self,), daemon=True)
         self._thread.start()
         self.wait()
         return _GetVideoStream(self)
