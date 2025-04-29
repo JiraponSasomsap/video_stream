@@ -2,13 +2,14 @@ import cv2
 import threading
 import time
 
-def video_streaming(insts):
+def video_streaming(insts:'VideoStream'):
     if insts.cap is None:
         insts.cap = insts.cam_connect()
     prev_time = time.perf_counter()
     while insts.is_running:
         ret, frame = insts.cap.read()
         if ret:
+            insts.original_frame = frame.copy()
             if insts.is_resize:
                 dsize = (insts.width, insts.height)  # Only (width, height) is needed
                 frame = cv2.resize(frame, dsize)
@@ -46,7 +47,7 @@ class VideoStream:
         self.source = source
         self.is_running = False
         self.lock_fps = lock_fps
-
+        self.original_frame = None
         self.current_frame = None
         self.current_frame_not_none = None
         self.fps = None
@@ -104,6 +105,10 @@ class VideoStream:
 class _GetVideoStream:
     def __init__(self, instance:VideoStream):
         self._videoStream = instance
+
+    @property
+    def original_frame(self):
+        return self._videoStream.original_frame
     
     @property
     def cam_fps(self):
