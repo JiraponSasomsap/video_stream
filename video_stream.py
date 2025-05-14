@@ -90,7 +90,7 @@ class VideoStream:
     
     def wait(self):
         while self.current_frame is None:
-            pass
+            time.sleep(0.1)
 
     def start(self):
         self.is_running = True
