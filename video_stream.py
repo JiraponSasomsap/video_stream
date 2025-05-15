@@ -10,6 +10,10 @@ def video_streaming(insts:'VideoStream'):
         ret, frame = insts.cap.read()
         if ret:
             insts.original_frame = frame.copy()
+            
+            if insts.callback is not None:
+                frame = insts.callback(frame)
+
             if insts.is_resize:
                 dsize = (insts.width, insts.height)  # Only (width, height) is needed
                 frame = cv2.resize(frame, dsize)
@@ -57,6 +61,7 @@ class VideoStream:
         self.frame_count = None
         self.cap = None
         self.reconnect = reconnect
+        self.callback = None
 
         self._thread = None
         self._cam_connect = False 
@@ -92,8 +97,9 @@ class VideoStream:
         while self.current_frame is None:
             time.sleep(0.1)
 
-    def start(self):
+    def start(self, callback=None):
         self.is_running = True
+        self.callback = callback
         self._thread = threading.Thread(target=video_streaming, args=(self,), daemon=True)
         self._thread.start()
         self.wait()
@@ -101,6 +107,9 @@ class VideoStream:
     
     def stop(self):
         self.is_running = False
+
+    def set_callback(self, callback):
+        self.callback = callback
     
 class _GetVideoStream:
     def __init__(self, instance:VideoStream):
