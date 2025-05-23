@@ -1,6 +1,7 @@
 import cv2
 import threading
 import time
+from .utils import version
 
 def video_streaming(insts:'VideoStream'):
     if insts.cap is None:
@@ -42,6 +43,7 @@ def video_streaming(insts:'VideoStream'):
     insts.cap.release()
 
 class VideoStream:
+    __version__ = version()
     def __init__(self, 
                  source, 
                  lock_fps=-1, 
