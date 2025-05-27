@@ -1,8 +1,10 @@
-from .utils import version
-from .video_stream import VideoStream, _GetVideoStream
+from .utils.version import version
+from .src.main import VideoStream
+from .src.getter import BaseGetterVideoStream
 
 __all__ = [
-    'VideoStream'
+    'VideoStream',
+    'BaseGetterVideoStream',
 ]
 
 __version__ = version()
